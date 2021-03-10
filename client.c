@@ -24,7 +24,7 @@ int main(void) {
 	ssize_t read;
 	char cwd[PATH_MAX]; // current working directory
 	int end = 0;
-	tMessage *m = malloc(sizeof(tMessage));
+	tMessage *mS = malloc(sizeof(tMessage));
 
 	socket = createSocket();
 	/* Get current working directoy */
@@ -33,54 +33,78 @@ int main(void) {
 	   return 1;
 	}
 
-	m->init = 0x7E;
-	m->dest_addr = 0x2;
-	m->src_addr = 0x1;
-	m->size = 0x0;
-	m->seq = 0x0;
-	m->type = 0x1;
+	// m->init = 0x7E;
+	// m->dest_addr = 0x2;
+	// m->src_addr = 0x1;
+	// m->size = 0x0;
+	// m->seq = 0x0;
+	// m->type = 0x1;
 
 	unsigned char *buffer = (unsigned char *) malloc(sizeof(tMessage));
-	memcpy(buffer, m, sizeof(tMessage));
-	if (send(socket, buffer, 16, 0) < 0) {
-        perror("Erro: Falha no envio da mensagem");
-        return -1;
-    }
-	// /* Get command from user */
-	// printf("%s:$", cwd);
-	// while( end == 0 && (read = getline(&cmd, &len, stdin)) != -1) {
-	// 	// if(cmd[0] != '\n') // not empty string
-	// 		cmd[strcspn(cmd,"\n")] = '\0';
+	
+	/* Get command from user */
+	printf("%s:$", cwd);
+	while( end == 0 && (read = getline(&cmd, &len, stdin)) != -1) {
+		// if(cmd[0] != '\n') // not empty string
+			cmd[strcspn(cmd,"\n")] = '\0';
 
-	// 	/* Get current working directoy */
-	// 	if (getcwd(cwd, sizeof(cwd)) == NULL) {
-	// 	   perror("getcwd() error");
-	// 	   return 1;
-	// 	}
-	// 	tok = strtok(cmd, " ");
+		/* Get current working directoy */
+		if (getcwd(cwd, sizeof(cwd)) == NULL) {
+		   perror("getcwd() error");
+		   return 1;
+		}
+		tok = strtok(cmd, " ");
 
-	// 	/* Run command */
-	// 	if(tok != NULL) {
-	// 		if(strcmp(tok, "lls") == 0) {
-	// 			ls(cwd);
-	// 		} else if(strcmp(tok, "lcd") == 0) {
-	// 			tok = strtok(NULL, " ");
-	// 			cd(cwd, tok);
-	// 		} else if(strcmp(tok, "quit") == 0) {
-	// 			end = 1;
-	// 		} else {
-	// 			// printf("Enter a command\n");
-	// 		}
+		/* Run command */
+		if(tok != NULL) {
+			if(strcmp(tok, "lls") == 0) {
+				tok = strtok(NULL, " ");
+				ls(cwd);
 
-	// 	}
-	// 	/* Update current working directory */
-	// 	if (getcwd(cwd, sizeof(cwd)) == NULL) {
-	// 		perror("getcwd() error");
-	// 		return 1;
-	// 	}
-	// 	if(end == 0)
-	// 		printf("%s:$", cwd);
-	// }
+			} else if(strcmp(tok, "lcd") == 0) {
+				tok = strtok(NULL, " ");
+				cd(cwd, tok);
+
+
+			} else if(strcmp(tok, "quit") == 0) {
+				tok = strtok(NULL, " ");
+				end = 1;
+
+			} else if(strcmp(tok, "cd")){
+				tok = strtok(NULL, " ");
+				mS->size = strlen(tok);
+				mS->seq  = 0x0;
+				mS->type = CMD_CD;
+
+			} else {
+				// printf("Enter a command\n");
+			}
+
+		}
+		if(tok != NULL) {
+			memcpy(mS->data, tok, mS->size);
+		}
+		mS->init = 0x7E;
+		mS->dest_addr = 0x2;
+		mS->src_addr  = 0x1;
+
+		memcpy(buffer, mS, sizeof(tMessage));
+		send(socket, buffer, sizeof(tMessage), 0)
+
+		mS->type = EOTX;
+		memcpy(buffer, mS, sizeof(tMessage));
+		send(socket, buffer, sizeof(tMessage), 0)
+
+
+
+		/* Update current working directory */
+		if (getcwd(cwd, sizeof(cwd)) == NULL) {
+			perror("getcwd() error");
+			return 1;
+		}
+		if(end == 0)
+			printf("%s:$", cwd);
+	}
 
 	/* close */
 	free(cmd);

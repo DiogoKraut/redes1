@@ -17,26 +17,46 @@
 int main() {
     int socket;
     ssize_t ret;
-    tMessage *m = malloc(sizeof(tMessage));
+	char cwd[PATH_MAX]; // current working directory
+    tMessage *mR = malloc(sizeof(tMessage));
     unsigned char *buffer = (unsigned char *) malloc(sizeof(tMessage));
 
     socket = createSocket();
-	    
+
+	/* Get current working directoy */
+	if (getcwd(cwd, sizeof(cwd)) == NULL) {
+	   perror("getcwd() error");
+	   return 1;
+	}
 
     while (1)
     {
+    	printf("%s$\n", cwd);
     	if ((ret = recv(socket, buffer, sizeof(tMessage), 0)) <= 0) {
         	perror("### Error: Falha na recepção da mensagem");
         	exit(-1);
     	}
-    	memcpy(m, buffer, sizeof(tMessage));
-    	if(m->init == 0x7E) {
-	    	printf("received\n");
-	    	if(m->type == 0x1)
-	    		printf("cd\n");
-    	}
+    	memcpy(mR, buffer, sizeof(tMessage));
+    	if(mR->init == 0x7E) {
 
+
+	    	if(mR->type == CMD_CD) {
+	    		cd(cwd, mR->data);
+
+
+
+				printf("%s$\n", cwd);
+
+	    	}
+    	}
+		if (getcwd(cwd, sizeof(cwd)) == NULL) {
+			perror("getcwd() error");
+			return 1;
+		}
+
+    	printf("%s$\n", cwd);
     }
+
 
     free(buffer);
     free(m);

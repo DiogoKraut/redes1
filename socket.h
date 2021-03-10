@@ -6,6 +6,20 @@
 #include <linux/if.h>
 #include <arpa/inet.h>
 
+#define CMD_CD     0x0
+#define CMD_LS     0x1
+#define CMD_CAT    0X2
+#define CMD_LINE   0X3
+#define CMD_LINES  0X4
+#define CMD_EDIT   0X5
+#define ACK        0X8
+#define	NACK       0X9
+#define LINE_DELIM 0XA
+#define	LS_DATA    0XB
+#define CAT_DATA   0XC
+#define EOTX       0XD
+#define ERR        0XF
+
 int createSocket();
 
 typedef struct sMessage {
@@ -19,6 +33,8 @@ typedef struct sMessage {
 	uint8_t type : 4;
 
 	unsigned char data[15];
+
+	unsigned char parity;
 } tMessage;
 
 int createSocket() {
@@ -59,3 +75,5 @@ int createSocket() {
 
     return sck;
 }
+
+// int sendMessage(char type, )
