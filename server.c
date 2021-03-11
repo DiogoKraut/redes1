@@ -18,10 +18,21 @@ int main() {
     int socket;
     ssize_t ret;
 	char cwd[PATH_MAX]; // current working directory
-    tMessage *mR = malloc(sizeof(tMessage));
-    unsigned char *buffer = (unsigned char *) malloc(sizeof(tMessage));
+    tMessage *m = malloc(sizeof(tMessage));
 
     socket = createSocket();
+
+    char *buffer = (char *) malloc(sizeof(tMessage));
+    char *ack = (char *) malloc(sizeof(tMessage));
+    char *nack = (char *) malloc(sizeof(tMessage));
+
+
+	/* ACK and NACK setup */
+	m->init = 0x7E;
+	m->type = 0x8;
+	memcpy(m, ack, sizeof(tMessage));
+	m->type = 0x9;
+	memcpy(m, nack, sizeof(tMessage));
 
 	/* Get current working directoy */
 	if (getcwd(cwd, sizeof(cwd)) == NULL) {
@@ -29,33 +40,42 @@ int main() {
 	   return 1;
 	}
 
-    while (1)
-    {
-    	printf("%s$\n", cwd);
+    while (1) {
     	if ((ret = recv(socket, buffer, sizeof(tMessage), 0)) <= 0) {
         	perror("### Error: Falha na recepção da mensagem");
         	exit(-1);
     	}
-    	memcpy(mR, buffer, sizeof(tMessage));
-    	if(mR->init == 0x7E) {
+    	memcpy(m, buffer, sizeof(tMessage));
 
+    	/* if marker is found*/
+    	if(m->init == 0x7E) {
 
-	    	if(mR->type == CMD_CD) {
-	    		cd(cwd, mR->data);
+    		if(errorDetection(m)) {
+    			send(socket, ack, sizeof(tMessage));
+    		} else {
+    			send(socket, nack, sizeof(tMessage));
+    		}
 
+    		// printf("0x%04X\n", m->type);
 
+    		/* interpret type and execute command */
+    		switch(m->type) {
+    			case CMD_CD:
+	    			cd(cwd, m->data);
 
-				printf("%s$\n", cwd);
+					if (getcwd(cwd, sizeof(cwd)) == NULL) {
+						perror("getcwd() error");
+						return 1;
+					}
 
-	    	}
+					break;
+				case CMD_LS:
+					ls(cwd);
+					break;
+    		}
     	}
-		if (getcwd(cwd, sizeof(cwd)) == NULL) {
-			perror("getcwd() error");
-			return 1;
-		}
-
-    	printf("%s$\n", cwd);
     }
+
 
 
     free(buffer);

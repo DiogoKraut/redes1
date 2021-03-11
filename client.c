@@ -17,7 +17,6 @@
 int main(void) {
 	int socket;
 
-	char c;
 	char *cmd = NULL;
 	char *tok;
 	size_t len = 0;
@@ -39,7 +38,6 @@ int main(void) {
 	// m->size = 0x0;
 	// m->seq = 0x0;
 	// m->type = 0x1;
-
 	unsigned char *buffer = (unsigned char *) malloc(sizeof(tMessage));
 	
 	/* Get command from user */
@@ -56,7 +54,7 @@ int main(void) {
 		tok = strtok(cmd, " ");
 
 		/* Run command */
-		if(tok != NULL) {
+		if(tok != NULL) { /* Command isnt empty string */
 			if(strcmp(tok, "lls") == 0) {
 				tok = strtok(NULL, " ");
 				ls(cwd);
@@ -70,38 +68,47 @@ int main(void) {
 				tok = strtok(NULL, " ");
 				end = 1;
 
-			} else if(strcmp(tok, "cd")){
+			} else if(strcmp(tok, "cd") == 0) {
 				tok = strtok(NULL, " ");
 				mS->size = strlen(tok);
 				mS->seq  = 0x0;
 				mS->type = CMD_CD;
 
-			} else {
-				// printf("Enter a command\n");
+			} else if(strcmp(tok, "ls") == 0) {
+				tok = strtok(NULL, " ");
+				mS->size = 0;
+				mS->seq  = 0;				
+				mS->type = CMD_LS;
 			}
 
+			if(tok != NULL) { /* Command has an argument */
+				memcpy(mS->data, tok, mS->size);
+				mS->data[mS->size] = '\0';
+			}
+			
+			mS->init = 0x7E;
+			mS->dest_addr = 0x2;
+			mS->src_addr  = 0x1;
+			mS->parity = parity(mS);
+
+			printf("\n");
+			memcpy(buffer, mS, sizeof(tMessage));
+			send(socket, buffer, sizeof(tMessage), 0);
+
+			mS->type = EOTX;
+			memcpy(buffer, mS, sizeof(tMessage));
+			send(socket, buffer, sizeof(tMessage), 0);
+
+
+			mS->size = 0;
+			mS->data[0] = '\0';
+			/* Update current working directory */
+			if (getcwd(cwd, sizeof(cwd)) == NULL) {
+				perror("getcwd() error");
+				return 1;
+			}
 		}
-		if(tok != NULL) {
-			memcpy(mS->data, tok, mS->size);
-		}
-		mS->init = 0x7E;
-		mS->dest_addr = 0x2;
-		mS->src_addr  = 0x1;
 
-		memcpy(buffer, mS, sizeof(tMessage));
-		send(socket, buffer, sizeof(tMessage), 0)
-
-		mS->type = EOTX;
-		memcpy(buffer, mS, sizeof(tMessage));
-		send(socket, buffer, sizeof(tMessage), 0)
-
-
-
-		/* Update current working directory */
-		if (getcwd(cwd, sizeof(cwd)) == NULL) {
-			perror("getcwd() error");
-			return 1;
-		}
 		if(end == 0)
 			printf("%s:$", cwd);
 	}
