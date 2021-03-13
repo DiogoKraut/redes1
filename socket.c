@@ -19,6 +19,76 @@ unsigned char parity(tMessage *m) {
     return p1;
 }
 
+void buildPacket(tMessage *mS, char *cmd, char *arg) {
+    /* Initial setup */
+    mS->init = 0x7E;
+    mS->dest_addr = 0x2;
+    mS->src_addr  = 0x1;
+    mS->size = 0;
+    mS->data[0] = '\0';
+
+    if(strcmp(cmd, "cd") == 0) {
+        mS->size = strlen(arg);
+        mS->seq  = 0x0;
+        mS->type = CMD_CD;
+
+    } else if(strcmp(cmd, "ls") == 0) {
+        mS->size = 0;
+        mS->seq  = 0;               
+        mS->type = CMD_LS;
+    }
+
+    if(arg != NULL) { /* Command has an argument */
+        memcpy(mS->data, arg, mS->size);
+        mS->data[mS->size] = '\0';
+    }
+    mS->parity = parity(mS);
+
+}
+
+int sendPacket(int socket, tMessage *m) {
+    int timeout = 0;
+    tMessage mR;
+    unsigned char *buffer = (unsigned char *) malloc(sizeof(tMessage));
+    send(socket, m, sizeof(tMessage), 0);
+    while(timeout < TIMEOUT_LIMIT) {
+        /* recv response */
+        recv(socket, buffer, sizeof(tMessage), 0);
+        memcpy(&mR, buffer, sizeof(tMessage));
+        if(mR.init == 0x7E) {
+            if(mR.type == ACK)
+                return 1;
+            else if(mR.type == NACK)
+                send(socket, m, sizeof(tMessage), 0); // resend
+            else if(mR.type == ERR) {
+                packetError(atoi(mR.data));
+                return 0;
+            }
+        }
+        timeout++;
+    }
+    /* TIMEOUT reached.. RESEND */
+    printf("TIMEOUT reached.. RESEND\n");
+    return sendPacket(socket, m);
+}
+
+void packetError(int e) {
+    switch(e) {
+        case PERM_DENIED:
+            perror("### ERR: Can't access file/directory. Permission Denied\n");
+            break;
+        case NO_DIR:
+            perror("### ERR: No such directory\n");
+            break;
+        case NO_FILE:
+            perror("### ERR: No such file\n");
+            break;
+        case NO_LINE:
+            perror("### ERR: File doesn't contain specified line\n");
+            break;
+    }
+}
+
 int createSocket() {
     int sck;
     struct ifreq ir;

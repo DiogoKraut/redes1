@@ -30,19 +30,21 @@ int main() {
 	/* ACK and NACK setup */
 	m->init = 0x7E;
 	m->type = 0x8;
-	memcpy(m, ack, sizeof(tMessage));
+	m->size = 0;
+	m->data[0] = '\0';
+	memcpy(ack, m, sizeof(tMessage));
 	m->type = 0x9;
-	memcpy(m, nack, sizeof(tMessage));
+	memcpy(nack, m, sizeof(tMessage));
 
 	/* Get current working directoy */
 	if (getcwd(cwd, sizeof(cwd)) == NULL) {
 	   perror("getcwd() error");
-	   return 1;
+	   exit(-1);
 	}
 
     while (1) {
     	if ((ret = recv(socket, buffer, sizeof(tMessage), 0)) <= 0) {
-        	perror("### Error: Falha na recepção da mensagem");
+        	perror("### Err: Packet recv failed");
         	exit(-1);
     	}
     	memcpy(m, buffer, sizeof(tMessage));
@@ -51,9 +53,10 @@ int main() {
     	if(m->init == 0x7E) {
 
     		if(errorDetection(m)) {
-    			send(socket, ack, sizeof(tMessage));
+    			send(socket, ack, sizeof(tMessage), 0);
+    			printf("send ack\n");
     		} else {
-    			send(socket, nack, sizeof(tMessage));
+    			send(socket, nack, sizeof(tMessage),0);
     		}
 
     		// printf("0x%04X\n", m->type);
@@ -65,7 +68,7 @@ int main() {
 
 					if (getcwd(cwd, sizeof(cwd)) == NULL) {
 						perror("getcwd() error");
-						return 1;
+						exit(-1);
 					}
 
 					break;

@@ -12,6 +12,13 @@
 #include <linux/if.h>
 #include <arpa/inet.h>
 
+/* Errors */
+#define PERM_DENIED 1
+#define NO_DIR      2
+#define NO_FILE     3
+#define NO_LINE     4
+
+/* Commands */
 #define CMD_CD     0x0
 #define CMD_LS     0x1
 #define CMD_CAT    0X2
@@ -25,6 +32,8 @@
 #define CAT_DATA   0XC
 #define EOTX       0XD
 #define ERR        0XF
+
+#define TIMEOUT_LIMIT 20
 
 typedef struct sMessage {
 	unsigned char init;
@@ -44,5 +53,8 @@ typedef struct sMessage {
 int createSocket();
 int errorDetection(tMessage *m);
 unsigned char parity(tMessage *m);
+void buildPacket(tMessage *mS, char *cmd, char *arg);
+int sendPacket(int socket, tMessage *m);
+void packetError(int e);
 
 #endif

@@ -16,14 +16,15 @@
 
 int main(void) {
 	int socket;
-
 	char *cmd = NULL;
-	char *tok;
+	char *arg = NULL;
+	char *temp;
 	size_t len = 0;
 	ssize_t read;
 	char cwd[PATH_MAX]; // current working directory
 	int end = 0;
 	tMessage *mS = malloc(sizeof(tMessage));
+	// tMessage *mR = malloc(sizeof(tMessage));
 
 	socket = createSocket();
 	/* Get current working directoy */
@@ -38,74 +39,51 @@ int main(void) {
 	// m->size = 0x0;
 	// m->seq = 0x0;
 	// m->type = 0x1;
-	unsigned char *buffer = (unsigned char *) malloc(sizeof(tMessage));
+	// unsigned char *buffer = (unsigned char *) malloc(sizeof(tMessage));
 	
 	/* Get command from user */
 	printf("%s:$", cwd);
-	while( end == 0 && (read = getline(&cmd, &len, stdin)) != -1) {
-		// if(cmd[0] != '\n') // not empty string
-			cmd[strcspn(cmd,"\n")] = '\0';
+	while( end == 0 && (read = getline(&temp, &len, stdin)) != -1) {
+		temp[strcspn(temp,"\n")] = '\0';
 
 		/* Get current working directoy */
 		if (getcwd(cwd, sizeof(cwd)) == NULL) {
-		   perror("getcwd() error");
-		   return 1;
+		   perror("### ERR: getcwd() error");
+		   exit(-1);
 		}
-		tok = strtok(cmd, " ");
+		cmd = strtok(temp, " ");
 
 		/* Run command */
-		if(tok != NULL) { /* Command isnt empty string */
-			if(strcmp(tok, "lls") == 0) {
-				tok = strtok(NULL, " ");
-				ls(cwd);
+		if(cmd != NULL) { /* Command isnt empty string */
+			arg = strtok(NULL, " ");
 
-			} else if(strcmp(tok, "lcd") == 0) {
-				tok = strtok(NULL, " ");
-				cd(cwd, tok);
+		    if(strcmp(cmd, "lls") == 0) {
+		        ls(cwd);
 
-
-			} else if(strcmp(tok, "quit") == 0) {
-				tok = strtok(NULL, " ");
-				end = 1;
-
-			} else if(strcmp(tok, "cd") == 0) {
-				tok = strtok(NULL, " ");
-				mS->size = strlen(tok);
-				mS->seq  = 0x0;
-				mS->type = CMD_CD;
-
-			} else if(strcmp(tok, "ls") == 0) {
-				tok = strtok(NULL, " ");
-				mS->size = 0;
-				mS->seq  = 0;				
-				mS->type = CMD_LS;
-			}
-
-			if(tok != NULL) { /* Command has an argument */
-				memcpy(mS->data, tok, mS->size);
-				mS->data[mS->size] = '\0';
-			}
-			
-			mS->init = 0x7E;
-			mS->dest_addr = 0x2;
-			mS->src_addr  = 0x1;
-			mS->parity = parity(mS);
-
-			printf("\n");
-			memcpy(buffer, mS, sizeof(tMessage));
-			send(socket, buffer, sizeof(tMessage), 0);
-
-			mS->type = EOTX;
-			memcpy(buffer, mS, sizeof(tMessage));
-			send(socket, buffer, sizeof(tMessage), 0);
+		    } else if(strcmp(cmd, "lcd") == 0) {
+		        cd(cwd, cmd);
 
 
-			mS->size = 0;
-			mS->data[0] = '\0';
+		    } else if(strcmp(cmd, "quit") == 0) {
+		        end = 1;
+
+		    } else if((strcmp(cmd, "ls") == 0)     || (strcmp(cmd, "cd") == 0)    ||
+		    		  (strcmp(cmd, "ver") == 0)    || (strcmp(cmd, "linha") == 0) ||
+		    		  (strcmp(cmd, "linhas") == 0) || (strcmp(cmd, "edit") == 0)) {
+		    	buildPacket(mS, cmd, arg);
+
+				if(sendPacket(socket, mS))
+					printf("ACKED\n");
+				else
+					printf("###NACKED\n");
+
+		    }
+
+
 			/* Update current working directory */
 			if (getcwd(cwd, sizeof(cwd)) == NULL) {
-				perror("getcwd() error");
-				return 1;
+				perror("### ERR: getcwd() error");
+				exit(-1);
 			}
 		}
 
