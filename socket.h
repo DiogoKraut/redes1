@@ -53,8 +53,8 @@ typedef struct sMessage {
 int createSocket();
 int errorDetection(tMessage *m);
 unsigned char parity(tMessage *m);
-void buildPacket(tMessage *mS, char *cmd, char *arg);
-int sendPacket(int socket, tMessage *m);
+void buildPacket(tMessage *mS, char *cmd, char *arg, int seq);
+int sendPacket(int socket, tMessage *m, tMessage *mR, int TYPE);
 void packetError(int e);
 
 #endif

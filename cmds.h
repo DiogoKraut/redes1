@@ -13,9 +13,12 @@
 #include <net/ethernet.h>
 #include <linux/if_packet.h>
 #include <linux/if.h>
+#include <dirent.h>
 
+#include "socket.h"
 
-void ls(char *cwd);
+void lls(void);
 void cd(char *cwd, char *path);
+int ls(int socket);
 
 #endif

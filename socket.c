@@ -19,22 +19,21 @@ unsigned char parity(tMessage *m) {
     return p1;
 }
 
-void buildPacket(tMessage *mS, char *cmd, char *arg) {
+void buildPacket(tMessage *mS, char *cmd, char *arg, int seq) {
     /* Initial setup */
     mS->init = 0x7E;
     mS->dest_addr = 0x2;
     mS->src_addr  = 0x1;
+    mS->seq = seq;
     mS->size = 0;
     mS->data[0] = '\0';
 
     if(strcmp(cmd, "cd") == 0) {
         mS->size = strlen(arg);
-        mS->seq  = 0x0;
         mS->type = CMD_CD;
 
     } else if(strcmp(cmd, "ls") == 0) {
         mS->size = 0;
-        mS->seq  = 0;               
         mS->type = CMD_LS;
     }
 
@@ -46,22 +45,29 @@ void buildPacket(tMessage *mS, char *cmd, char *arg) {
 
 }
 
-int sendPacket(int socket, tMessage *m) {
+/* Sends the packet described in m and waits for the response   *
+ * Returns 1 if response type matches the one specified in TYPE *
+ * Returns 0 if response type is an error                       *
+ * Resends if reponse type is NACK or TIMEOUT is reached        *
+ *
+ * mR must be valid even if calling program wont use it         */
+int sendPacket(int socket, tMessage *mS, tMessage *mR, int TYPE) {
     int timeout = 0;
-    tMessage mR;
-    unsigned char *buffer = (unsigned char *) malloc(sizeof(tMessage));
-    send(socket, m, sizeof(tMessage), 0);
+    unsigned char buffer[sizeof(tMessage)];
+    send(socket, mS, sizeof(tMessage), 0);
+
     while(timeout < TIMEOUT_LIMIT) {
         /* recv response */
-        recv(socket, buffer, sizeof(tMessage), 0);
-        memcpy(&mR, buffer, sizeof(tMessage));
-        if(mR.init == 0x7E) {
-            if(mR.type == ACK)
+        recv(socket, &buffer, sizeof(tMessage), 0);
+        memcpy(mR, &buffer, sizeof(tMessage));
+
+        if(mR->init == 0x7E) {
+            if(mR->type == TYPE)
                 return 1;
-            else if(mR.type == NACK)
-                send(socket, m, sizeof(tMessage), 0); // resend
-            else if(mR.type == ERR) {
-                packetError(atoi(mR.data));
+            else if(mR->type == NACK)
+                send(socket, mS, sizeof(tMessage), 0); // resend
+            else if(mR->type == ERR) {
+                packetError(atoi(mR->data));
                 return 0;
             }
         }
@@ -69,7 +75,7 @@ int sendPacket(int socket, tMessage *m) {
     }
     /* TIMEOUT reached.. RESEND */
     printf("TIMEOUT reached.. RESEND\n");
-    return sendPacket(socket, m);
+    return sendPacket(socket, mS, mR, TYPE);
 }
 
 void packetError(int e) {

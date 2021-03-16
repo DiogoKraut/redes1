@@ -52,20 +52,16 @@ int main() {
     	/* if marker is found*/
     	if(m->init == 0x7E) {
 
-    		if(errorDetection(m)) {
-    			send(socket, ack, sizeof(tMessage), 0);
-    			printf("send ack\n");
-    		} else {
-    			send(socket, nack, sizeof(tMessage),0);
-    		}
-
-    		// printf("0x%04X\n", m->type);
+    		// if(errorDetection(m))
+    		// 	send(socket, ack, sizeof(tMessage), 0);
+    		// else
+    		// 	send(socket, nack, sizeof(tMessage),0);
 
     		/* interpret type and execute command */
     		switch(m->type) {
     			case CMD_CD:
+	    			send(socket, ack, sizeof(tMessage), 0);
 	    			cd(cwd, m->data);
-
 					if (getcwd(cwd, sizeof(cwd)) == NULL) {
 						perror("getcwd() error");
 						exit(-1);
@@ -73,7 +69,7 @@ int main() {
 
 					break;
 				case CMD_LS:
-					ls(cwd);
+					ls(socket);
 					break;
     		}
     	}
@@ -83,5 +79,8 @@ int main() {
 
     free(buffer);
     free(m);
+    free(ack);
+    free(nack);
+
     return 0;
 }
