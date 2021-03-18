@@ -22,18 +22,20 @@ int main() {
 
     socket = createSocket();
 
-    char *buffer = (char *) malloc(sizeof(tMessage));
-    char *ack = (char *) malloc(sizeof(tMessage));
-    char *nack = (char *) malloc(sizeof(tMessage));
+    char *buffer = malloc(sizeof(tMessage));
+    char *tmp = malloc(DATA_MAX+1);
+
+    char *ack    = malloc(sizeof(tMessage));
+    char *nack   = malloc(sizeof(tMessage));
 
 
 	/* ACK and NACK setup */
 	m->init = 0x7E;
-	m->type = 0x8;
+	m->type = ACK;
 	m->size = 0;
 	m->data[0] = '\0';
 	memcpy(ack, m, sizeof(tMessage));
-	m->type = 0x9;
+	m->type = NACK;
 	memcpy(nack, m, sizeof(tMessage));
 
 	/* Get current working directoy */
@@ -70,6 +72,22 @@ int main() {
 					break;
 				case CMD_LS:
 					ls(socket);
+					break;
+
+				case CMD_CAT:
+					cat(socket, m->data);
+					break;
+				case CMD_LINE:
+					send(socket, ack, sizeof(tMessage), 0);
+					memcpy(tmp, m->data, m->size);
+					while(m->type != LINE_DELIM) {
+						if ((ret = recv(socket, buffer, sizeof(tMessage), 0)) <= 0) {
+				        	perror("### Err: Packet recv failed");
+				        	exit(-1);
+				    	}
+		    	    	memcpy(m, buffer, sizeof(tMessage));
+					}
+					
 					break;
     		}
     	}

@@ -19,7 +19,7 @@ unsigned char parity(tMessage *m) {
     return p1;
 }
 
-void buildPacket(tMessage *mS, char *cmd, char *arg, int seq) {
+void buildPacket(tMessage *mS, char *arg,  int type, int seq) {
     /* Initial setup */
     mS->init = 0x7E;
     mS->dest_addr = 0x2;
@@ -28,19 +28,14 @@ void buildPacket(tMessage *mS, char *cmd, char *arg, int seq) {
     mS->size = 0;
     mS->data[0] = '\0';
 
-    if(strcmp(cmd, "cd") == 0) {
-        mS->size = strlen(arg);
-        mS->type = CMD_CD;
-
-    } else if(strcmp(cmd, "ls") == 0) {
-        mS->size = 0;
-        mS->type = CMD_LS;
-    }
+    mS->type = type;
 
     if(arg != NULL) { /* Command has an argument */
+        mS->size = strlen(arg);
         memcpy(mS->data, arg, mS->size);
         mS->data[mS->size] = '\0';
-    }
+    } else
+        mS->size = 0;
     mS->parity = parity(mS);
 
 }

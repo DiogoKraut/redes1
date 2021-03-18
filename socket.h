@@ -34,6 +34,7 @@
 #define ERR        0XF
 
 #define TIMEOUT_LIMIT 20
+#define DATA_MAX 15
 
 typedef struct sMessage {
 	unsigned char init;
@@ -45,7 +46,7 @@ typedef struct sMessage {
 	uint8_t seq  : 4;
 	uint8_t type : 4;
 
-	char data[15];
+	char data[DATA_MAX];
 
 	unsigned char parity;
 } tMessage;
@@ -53,7 +54,7 @@ typedef struct sMessage {
 int createSocket();
 int errorDetection(tMessage *m);
 unsigned char parity(tMessage *m);
-void buildPacket(tMessage *mS, char *cmd, char *arg, int seq);
+void buildPacket(tMessage *mS, char *arg,  int type, int seq);
 int sendPacket(int socket, tMessage *m, tMessage *mR, int TYPE);
 void packetError(int e);
 

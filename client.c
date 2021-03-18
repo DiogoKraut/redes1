@@ -24,13 +24,15 @@ int main(void) {
 	ssize_t read;
 	char cwd[PATH_MAX]; // current working directory
 	int end = 0;
+	int seq;
 
 	tMessage *mS = malloc(sizeof(tMessage));
 	tMessage *mR = malloc(sizeof(tMessage));
 
-	unsigned char *buffer = (unsigned char *) malloc(sizeof(tMessage));
-    char *ack = (char *) malloc(sizeof(tMessage));
-    char *nack = (char *) malloc(sizeof(tMessage));
+	unsigned char *buffer = malloc(sizeof(tMessage));
+	char *data_tmp = malloc(DATA_MAX+3);
+    char *ack = malloc(sizeof(tMessage));
+    char *nack = malloc(sizeof(tMessage));
 
 	socket = createSocket();
 
@@ -70,25 +72,31 @@ int main(void) {
 		        lls();
 
 		    } else if(strcmp(cmd, "lcd") == 0) {
-		        cd(cwd, cmd);
+		        cd(cwd, arg);
 
 
 		    } else if(strcmp(cmd, "quit") == 0) {
 		        end = 1;
 
-		    } else if((strcmp(cmd, "cd") == 0)    ||
-		    		  (strcmp(cmd, "ver") == 0)    || (strcmp(cmd, "linha") == 0) ||
-		    		  (strcmp(cmd, "linhas") == 0) || (strcmp(cmd, "edit") == 0)) {
-		    	buildPacket(mS, cmd, arg, 0);
-
-				send(socket, mS, sizeof(tMessage), 0);
+		    } else if((strcmp(cmd, "cd") == 0)) {
+		    	buildPacket(mS, arg, CMD_CD, 0);
+				sendPacket(socket, mS, mR, ACK);
 
 		    } else if((strcmp(cmd, "ls") == 0)) {
-		    	buildPacket(mS, cmd, arg, 0);
+				seq = 0;		    	
+		    	/* Treating first packet (file name) separetly		   *
+		    	 * because sendPacket also receives the first response */
+		    	buildPacket(mS, NULL, CMD_LS, 0);
 				sendPacket(socket, mS, mR, LS_DATA);
-				send(socket, ack, sizeof(tMessage), 0);
-				printf("%s\n", mR->data);
+				if(errorDetection(mR)) {
+					send(socket, ack, sizeof(tMessage), 0);
+					memcpy(data_tmp, mR->data, mR->size);
+					data_tmp[mR->size] = '\0';
+		    		printf("%s\n", data_tmp);
+		    	} else
+					send(socket, nack, sizeof(tMessage), 0);
 
+				/* Receive rest of packets */
 				do {
 					if ((ret = recv(socket, buffer, sizeof(tMessage), 0)) <= 0) {
 			        	perror("### Err: Packet recv failed");
@@ -99,12 +107,48 @@ int main(void) {
 			    	if(mR->type == LS_DATA) {
 			    		if(errorDetection(mR)) {
 							send(socket, ack, sizeof(tMessage), 0);
-				    		printf("%s\n", mR->data);
+				    		memcpy(data_tmp, mR->data, mR->size);
+							data_tmp[mR->size] = '\0';
+				    		printf("%s\n", data_tmp);
 				    	} else
   							send(socket, nack, sizeof(tMessage), 0);
 			    	}
 				}while(mR->type != EOTX);
-				send(socket, ack, sizeof(tMessage), 0);
+				send(socket, ack, sizeof(tMessage), 0); //ACK EOTX
+
+		    } else if((strcmp(cmd, "ver") == 0)) {
+		    	seq = 0;
+
+		    	buildPacket(mS, arg, CMD_CAT, 0);
+		    	sendPacket(socket, mS, mR, CAT_DATA);
+		    	if(errorDetection(mR)) {
+					send(socket, ack, sizeof(tMessage), 0);
+		    		memcpy(data_tmp, mR->data, mR->size);
+					data_tmp[mR->size] = '\0';
+		    		printf("%d %s\n", seq, data_tmp);
+		    		seq++;
+		    	} else
+					send(socket, nack, sizeof(tMessage), 0);
+
+		    	do{ 
+		    		if ((ret = recv(socket, buffer, sizeof(tMessage), 0)) <= 0) {
+			        	perror("### Err: Packet recv failed");
+			        	exit(-1);
+			    	}
+			    	memcpy(mR, buffer, sizeof(tMessage));
+
+			    	if(mR->type == CAT_DATA) {
+			    		if(errorDetection(mR)) {
+							send(socket, ack, sizeof(tMessage), 0);
+				    		memcpy(data_tmp, mR->data, mR->size);
+							data_tmp[mR->size] = '\0';
+				    		printf("%d %s\n", seq, data_tmp);
+				    		seq++;
+				    	} else
+  							send(socket, nack, sizeof(tMessage), 0);
+			    	}
+				}while(mR->type != EOTX);
+				send(socket, ack, sizeof(tMessage), 0); //ACK EOTX
 		    }
 
 

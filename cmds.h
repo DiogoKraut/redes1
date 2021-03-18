@@ -20,5 +20,7 @@
 void lls(void);
 void cd(char *cwd, char *path);
 int ls(int socket);
+int cat(int socket, char *filename);
+int line(int socket, char *filename, int line);
 
 #endif

@@ -46,6 +46,7 @@ int ls(int socket) {
 	int size, i;
 	tMessage *m = malloc(sizeof(tMessage));
 	tMessage *mR = malloc(sizeof(tMessage));
+
 	m->init = 0x7E;
     m->dest_addr = 0x1;
     m->src_addr  = 0x2;
@@ -61,17 +62,35 @@ int ls(int socket) {
 	}
 
 	for(i = 0; i < size; i++) {
-		m->seq = i;
-		if(strlen(namelist[i]->d_name) >= 15)
-			m->size = 15;
-		else
-			m->size = strlen(namelist[i]->d_name);
+		// if(strlen(namelist[i]->d_name) < DATA_MAX) {
+			m->size = strlen(namelist[i]->d_name) <= DATA_MAX ? strlen(namelist[i]->d_name) : DATA_MAX;
+			memcpy(m->data, namelist[i]->d_name, m->size);
+			// m->data[m->size-1] = '\0';
+			m->parity = parity(m);
+			if(!sendPacket(socket, m, mR, ACK))
+				return -1;
 
-		memcpy(m->data, namelist[i]->d_name, m->size);
-		m->data[m->size] = '\0';
-		m->parity = parity(m);
-		if(!sendPacket(socket, m, mR, ACK))
-			return -1;
+		// } else {
+		// 	m->size = DATA_MAX;
+		// 	memcpy(m->data, namelist[i]->d_name, m->size-1);
+		// 	m->data[m->size-1] = '\0';
+		// 	m->parity = parity(m);
+		// 	if(!sendPacket(socket, m, mR, ACK))
+		// 		return -1;
+		// 	m->seq++;
+
+		// 	m->size = strlen(namelist[i]->d_name) - DATA_MAX+3;
+		// 	memcpy(m->data, namelist[i]->d_name+DATA_MAX-1, m->size-1);
+		// 	m->data[m->size-2] = '\n';
+		// 	m->data[m->size-1] = '\0';
+		// 	m->parity = parity(m);
+		// 	if(!sendPacket(socket, m, mR, ACK))
+		// 		return -1;
+		// 	m->seq++;
+		// 	printf("%d %s\n", m->seq, m->data);
+
+		// }
+
 	}
 	m->size = 0;
 	m->data[0] = '\0';
@@ -88,3 +107,108 @@ int ls(int socket) {
 	return 0;
 }
 
+int cat(int socket, char *filename) {
+	tMessage *m = malloc(sizeof(tMessage));
+	tMessage *mR = malloc(sizeof(tMessage));
+
+	FILE *fp;
+	char *lineptr = NULL;
+	size_t n = 0;
+	ssize_t size;
+
+	m->init = 0x7E;
+    m->dest_addr = 0x1;
+    m->src_addr  = 0x2;
+    m->seq = 0;
+    m->type = CAT_DATA;
+    m->size = 0;
+    m->data[0] = '\0';
+
+	fp = fopen(filename, "r");
+	if(fp == NULL) {
+	    m->type = ERR;
+	    m->size = 1;
+	    m->data[1] = '\0';
+		switch(errno) {
+			case EACCES:
+				m->data[0] = PERM_DENIED;
+				break;
+			case ENOENT:
+				m->data[0] = NO_FILE;
+				break;
+
+		}
+		send(socket, m, sizeof(tMessage), 0);
+		return 0;
+	}
+
+	while((size = getline(&lineptr, &n, fp)) != -1) {
+		m->size = strlen(lineptr) <= DATA_MAX ? strlen(lineptr) : DATA_MAX;
+		memcpy(m->data, lineptr, m->size);
+		// m->data[m->size-1] = '\0';
+		m->parity = parity(m);
+		if(!sendPacket(socket, m, mR, ACK))
+			return -1;
+	}
+
+			return 1;
+
+	free(m);
+	free(mR);
+	free(lineptr);
+
+}
+int line(int socket, char *filename, int line) {
+	tMessage *m = malloc(sizeof(tMessage));
+	tMessage *mR = malloc(sizeof(tMessage));
+
+	FILE *fp;
+	char *lineptr = NULL;
+	size_t n = 0;
+	ssize_t size;
+	int count = 0;
+	m->init = 0x7E;
+    m->dest_addr = 0x1;
+    m->src_addr  = 0x2;
+    m->seq = 0;
+    m->type = CAT_DATA;
+    m->size = 0;
+    m->data[0] = '\0';
+
+	fp = fopen(filename, "r");
+	if(fp == NULL) {
+	    m->type = ERR;
+	    m->size = 1;
+	    m->data[1] = '\0';
+		switch(errno) {
+			case EACCES:
+				m->data[0] = PERM_DENIED;
+				break;
+			case ENOENT:
+				m->data[0] = NO_FILE;
+				break;
+
+		}
+		send(socket, m, sizeof(tMessage), 0);
+		return 0;
+	}
+
+	while((size = getline(&lineptr, &n, fp)) != -1) {
+		if(count == line) {
+			m->size = strlen(lineptr) <= DATA_MAX ? strlen(lineptr) : DATA_MAX;
+			memcpy(m->data, lineptr, m->size);
+			// m->data[m->size-1] = '\0';
+			m->parity = parity(m);
+			if(!sendPacket(socket, m, mR, ACK))
+				return -1;
+		}
+		count++;
+	}
+
+			return 1;
+
+	free(m);
+	free(mR);
+	free(lineptr);
+
+}
