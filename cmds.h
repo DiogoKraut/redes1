@@ -14,13 +14,15 @@
 #include <linux/if_packet.h>
 #include <linux/if.h>
 #include <dirent.h>
-
+#include <math.h>
 #include "socket.h"
 
 void lls(void);
-void cd(char *cwd, char *path);
+void lcd(char *cwd, char *path);
+void cd(int socket, char *cwd, char *path);
 int ls(int socket);
 int cat(int socket, char *filename);
 int line(int socket, char *filename, int line);
+void runCommand(int socket, tMessage *mS, tMessage *mR, char *arg, int CMD_TYPE, int R_TYPE, int src, int dest);
 
 #endif

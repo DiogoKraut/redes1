@@ -3,6 +3,7 @@ CFLAGS = -g -Wall
 HEADERS = $(wildcard *.h)
 OBJECTS = cmds.o socket.o
 TARGET = server client
+LIBS = -lm
 
 default: $(TARGET)
 all: default clean
@@ -12,10 +13,10 @@ all: default clean
 
 
 server: server.o $(OBJECTS)
-	$(CC) $(CFLAGS) $(OBJECTS) $< -o $@
+	$(CC) $(CFLAGS) $(OBJECTS) $(LIBS) $< -o $@
 
 client: client.o $(OBJECTS)
-	$(CC) $(CFLAGS) $(OBJECTS) $< -o $@
+	$(CC) $(CFLAGS) $(OBJECTS) $(LIBS) $< -o $@
 
 
 clean:

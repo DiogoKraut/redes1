@@ -19,11 +19,11 @@ unsigned char parity(tMessage *m) {
     return p1;
 }
 
-void buildPacket(tMessage *mS, char *arg,  int type, int seq) {
+void buildPacket(tMessage *mS, char *arg,  int type, int seq, int src, int dest) {
     /* Initial setup */
     mS->init = 0x7E;
-    mS->dest_addr = 0x2;
-    mS->src_addr  = 0x1;
+    mS->dest_addr = dest;
+    mS->src_addr  = src;
     mS->seq = seq;
     mS->size = 0;
     mS->data[0] = '\0';
@@ -33,9 +33,11 @@ void buildPacket(tMessage *mS, char *arg,  int type, int seq) {
     if(arg != NULL) { /* Command has an argument */
         mS->size = strlen(arg);
         memcpy(mS->data, arg, mS->size);
-        mS->data[mS->size] = '\0';
-    } else
+        // mS->data[mS->size] = '\0';
+    } else {
         mS->size = 0;
+        mS->data[0] = '\0';
+    }
     mS->parity = parity(mS);
 
 }
@@ -72,17 +74,42 @@ int sendPacket(int socket, tMessage *mS, tMessage *mR, int TYPE) {
     printf("TIMEOUT reached.. RESEND\n");
     return sendPacket(socket, mS, mR, TYPE);
 }
+void sendError(int socket, int err) {
+    tMessage m;
+    m.init = 0x7E;
+    m.dest_addr = 0x1;
+    m.src_addr  = 0x2;
+    m.seq = 0;
+    m.type = ERR;
+    m.size = 1;
+    m.data[1] = '\0';
 
+    switch(err) {
+        case EACCES:
+            m.data[0] = PERM_DENIED;
+            break;
+        case ENOENT:
+            m.data[0] = NO_FILE;
+            break;
+        case NO_LINE:
+            m.data[0] = NO_LINE;
+            break;
+        case ENOTDIR:
+            m.data[0] = NO_DIR;
+            break;
+    }
+    send(socket, &m, sizeof(tMessage), 0);
+}
 void packetError(int e) {
     switch(e) {
         case PERM_DENIED:
             fprintf(stderr, "### ERR: Can't access file/directory. Permission Denied\n");
             break;
         case NO_DIR:
-            fprintf(stderr, "### ERR: No such directory\n");
+            fprintf(stderr, "### ERR: No such file/directory\n");
             break;
         case NO_FILE:
-            fprintf(stderr, "### ERR: No such file\n");
+            fprintf(stderr, "### ERR: No such file/directory\n");
             break;
         case NO_LINE:
             fprintf(stderr, "### ERR: File doesn't contain specified line\n");
@@ -109,7 +136,7 @@ int createSocket() {
         exit(-1);
     }
 
-    memset(&addr, 0, sizeof(addr));   	  /*IP do dispositivo*/
+    memset(&addr, 0, sizeof(addr));       /*IP do dispositivo*/
     addr.sll_family = AF_PACKET;
     addr.sll_protocol = htons(ETH_P_ALL);
     addr.sll_ifindex = 2; //ir.ifr_ifindex;
