@@ -87,7 +87,7 @@ int main() {
 				    	}
 		    	    	memcpy(m, buffer, sizeof(tMessage));
 					}
-					
+					line(socket, tmp, m->data[0] - '0');
 					break;
     		}
     	}

@@ -63,12 +63,12 @@ int ls(int socket) {
 
 	for(i = 0; i < size; i++) {
 		// if(strlen(namelist[i]->d_name) < DATA_MAX) {
-			m->size = strlen(namelist[i]->d_name) <= DATA_MAX ? strlen(namelist[i]->d_name) : DATA_MAX;
-			memcpy(m->data, namelist[i]->d_name, m->size);
-			// m->data[m->size-1] = '\0';
-			m->parity = parity(m);
-			if(!sendPacket(socket, m, mR, ACK))
-				return -1;
+		m->size = strlen(namelist[i]->d_name) <= DATA_MAX ? strlen(namelist[i]->d_name) : DATA_MAX;
+		memcpy(m->data, namelist[i]->d_name, m->size);
+		// m->data[m->size-1] = '\0';
+		m->parity = parity(m);
+		if(!sendPacket(socket, m, mR, ACK))
+			return -1;
 
 		// } else {
 		// 	m->size = DATA_MAX;
@@ -92,6 +92,7 @@ int ls(int socket) {
 		// }
 
 	}
+	/* Send EOTX */
 	m->size = 0;
 	m->data[0] = '\0';
 	m->type = EOTX;
@@ -104,7 +105,7 @@ int ls(int socket) {
 	free(m);
 	free(mR);
 
-	return 0;
+	return 1;
 }
 
 int cat(int socket, char *filename) {
@@ -136,7 +137,6 @@ int cat(int socket, char *filename) {
 			case ENOENT:
 				m->data[0] = NO_FILE;
 				break;
-
 		}
 		send(socket, m, sizeof(tMessage), 0);
 		return 0;
@@ -150,12 +150,17 @@ int cat(int socket, char *filename) {
 		if(!sendPacket(socket, m, mR, ACK))
 			return -1;
 	}
+	/* Send EOTX */
+	m->size = 0;
+	m->data[0] = '\0';
+	m->type = EOTX;
+	sendPacket(socket, m, mR, ACK);
 
-			return 1;
-
+	fclose(fp);
 	free(m);
 	free(mR);
 	free(lineptr);
+	return 1;
 
 }
 int line(int socket, char *filename, int line) {
@@ -205,10 +210,20 @@ int line(int socket, char *filename, int line) {
 		count++;
 	}
 
-			return 1;
+	if(count <= line) {// line doesnt exist
 
+	} else {
+		/* Send EOTX */
+		m->size = 0;
+		m->data[0] = '\0';
+		m->type = EOTX;
+		sendPacket(socket, m, mR, ACK);
+	}
+
+	fclose(fp);
 	free(m);
 	free(mR);
 	free(lineptr);
 
+	return 0;
 }

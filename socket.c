@@ -76,16 +76,16 @@ int sendPacket(int socket, tMessage *mS, tMessage *mR, int TYPE) {
 void packetError(int e) {
     switch(e) {
         case PERM_DENIED:
-            perror("### ERR: Can't access file/directory. Permission Denied\n");
+            fprintf(stderr, "### ERR: Can't access file/directory. Permission Denied\n");
             break;
         case NO_DIR:
-            perror("### ERR: No such directory\n");
+            fprintf(stderr, "### ERR: No such directory\n");
             break;
         case NO_FILE:
-            perror("### ERR: No such file\n");
+            fprintf(stderr, "### ERR: No such file\n");
             break;
         case NO_LINE:
-            perror("### ERR: File doesn't contain specified line\n");
+            fprintf(stderr, "### ERR: File doesn't contain specified line\n");
             break;
     }
 }

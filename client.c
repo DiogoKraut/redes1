@@ -84,26 +84,10 @@ int main(void) {
 
 		    } else if((strcmp(cmd, "ls") == 0)) {
 				seq = 0;		    	
-		    	/* Treating first packet (file name) separetly		   *
-		    	 * because sendPacket also receives the first response */
 		    	buildPacket(mS, NULL, CMD_LS, 0);
 				sendPacket(socket, mS, mR, LS_DATA);
-				if(errorDetection(mR)) {
-					send(socket, ack, sizeof(tMessage), 0);
-					memcpy(data_tmp, mR->data, mR->size);
-					data_tmp[mR->size] = '\0';
-		    		printf("%s\n", data_tmp);
-		    	} else
-					send(socket, nack, sizeof(tMessage), 0);
 
-				/* Receive rest of packets */
-				do {
-					if ((ret = recv(socket, buffer, sizeof(tMessage), 0)) <= 0) {
-			        	perror("### Err: Packet recv failed");
-			        	exit(-1);
-			    	}
-			    	memcpy(mR, buffer, sizeof(tMessage));
-
+				while(mR->type != EOTX && mR->type != ERR) {
 			    	if(mR->type == LS_DATA) {
 			    		if(errorDetection(mR)) {
 							send(socket, ack, sizeof(tMessage), 0);
@@ -113,42 +97,72 @@ int main(void) {
 				    	} else
   							send(socket, nack, sizeof(tMessage), 0);
 			    	}
-				}while(mR->type != EOTX);
-				send(socket, ack, sizeof(tMessage), 0); //ACK EOTX
-
-		    } else if((strcmp(cmd, "ver") == 0)) {
-		    	seq = 0;
-
-		    	buildPacket(mS, arg, CMD_CAT, 0);
-		    	sendPacket(socket, mS, mR, CAT_DATA);
-		    	if(errorDetection(mR)) {
-					send(socket, ack, sizeof(tMessage), 0);
-		    		memcpy(data_tmp, mR->data, mR->size);
-					data_tmp[mR->size] = '\0';
-		    		printf("%d %s\n", seq, data_tmp);
-		    		seq++;
-		    	} else
-					send(socket, nack, sizeof(tMessage), 0);
-
-		    	do{ 
-		    		if ((ret = recv(socket, buffer, sizeof(tMessage), 0)) <= 0) {
+					if ((ret = recv(socket, buffer, sizeof(tMessage), 0)) <= 0) {
 			        	perror("### Err: Packet recv failed");
 			        	exit(-1);
 			    	}
 			    	memcpy(mR, buffer, sizeof(tMessage));
+			    }
+				if(mR->type == EOTX)
+					send(socket, ack, sizeof(tMessage), 0); //ACK EOTX
+				else if(mR->type == ERR)
+					packetError(mR->data[0]);
 
+		    } else if((strcmp(cmd, "ver") == 0)) {
+		    	seq = 0;
+		    	buildPacket(mS, arg, CMD_CAT, 0);
+		    	sendPacket(socket, mS, mR, CAT_DATA);
+
+				while(mR->type != EOTX && mR->type != ERR) { // process response until EOTX
 			    	if(mR->type == CAT_DATA) {
 			    		if(errorDetection(mR)) {
 							send(socket, ack, sizeof(tMessage), 0);
 				    		memcpy(data_tmp, mR->data, mR->size);
 							data_tmp[mR->size] = '\0';
-				    		printf("%d %s\n", seq, data_tmp);
+				    		printf("%d %s\n", seq, data_tmp); // print if no errors
 				    		seq++;
 				    	} else
-  							send(socket, nack, sizeof(tMessage), 0);
+  							send(socket, nack, sizeof(tMessage), 0); // nack if error
 			    	}
-				}while(mR->type != EOTX);
-				send(socket, ack, sizeof(tMessage), 0); //ACK EOTX
+			    	/* Receive next response */
+		    		if ((ret = recv(socket, buffer, sizeof(tMessage), 0)) <= 0) {
+			        	perror("### Err: Packet recv failed");
+			        	exit(-1);
+			    	}
+			    	memcpy(mR, buffer, sizeof(tMessage));
+			    }
+			    if(mR->type == EOTX)
+					send(socket, ack, sizeof(tMessage), 0); //ACK EOTX
+				else if(mR->type == ERR)
+					packetError(mR->data[0]);
+
+		    } else if((strcmp(cmd, "linha") == 0)) {
+		    	buildPacket(mS, strtok(NULL, " "), CMD_LINE, 0); //strtok return file name
+		    	sendPacket(socket, mS, mR, ACK);// send file name, wait for ACK
+		    	buildPacket(mS, arg, LINE_DELIM, 0);
+		    	sendPacket(socket, mS, mR, CAT_DATA);// send line num, wait for the data
+		    	while(mR->type != EOTX  && mR->type != ERR) {
+		    		if(mR->type == CAT_DATA) {
+				    	if(errorDetection(mR)) {
+							send(socket, ack, sizeof(tMessage), 0);
+				    		memcpy(data_tmp, mR->data, mR->size);
+							data_tmp[mR->size] = '\0';
+				    		printf("%s\n", data_tmp);
+				    	} else
+							send(socket, nack, sizeof(tMessage), 0);
+					}
+
+					if ((ret = recv(socket, buffer, sizeof(tMessage), 0)) <= 0) {
+			        	perror("### Err: Packet recv failed");
+			        	exit(-1);
+			    	}
+			    	memcpy(mR, buffer, sizeof(tMessage));
+				}
+
+				if(mR->type == EOTX)
+					send(socket, ack, sizeof(tMessage), 0); //ACK EOTX
+				else if(mR->type == ERR)
+					packetError(mR->data[0]);
 		    }
 
 
