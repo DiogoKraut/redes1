@@ -28,11 +28,6 @@ int main(void) {
     tMessage *mS = malloc(sizeof(tMessage));
     tMessage *mR = malloc(sizeof(tMessage));
 
-    // unsigned char *buffer = malloc(sizeof(tMessage));
-    // char *data_tmp = malloc(DATA_MAX+3);
-    // char *ack = malloc(sizeof(tMessage));
-    // char *nack = malloc(sizeof(tMessage));
-
     socket = createSocket();
 
     /* Get current working directoy */
@@ -40,31 +35,16 @@ int main(void) {
         perror("getcwd() error");
         return 1;
     }
-
-    /* ACK and NACK setup */
-    // mS->init = 0x7E;
-    // mS->type = ACK;
-    // mS->size = 0;
-    // mS->data[0] = '\0';
-    // memcpy(ack, mS, sizeof(tMessage));
-    // mS->type = NACK;
-    // memcpy(nack, mS, sizeof(tMessage));
     
     /* Get command from user */
     printf("%s:$", cwd);
     while( end == 0 && (read = getline(&temp, &len, stdin)) != -1) {
+        temp[strcspn(temp,"\n")] = '\0'; // remove trailing return
 
-        temp[strcspn(temp,"\n")] = '\0';
-
-        /* Get current working directoy */
-        if (getcwd(cwd, sizeof(cwd)) == NULL) {
-           perror("### ERR: getcwd() error");
-           exit(-1);
-        }
-        cmd = strtok(temp, " ");
+        cmd = strtok(temp, " "); // split command into tokens
 
         /* Run command */
-        if(cmd != NULL) { /* Command isnt empty string */
+        if(cmd != NULL) { // command isnt empty string
             arg = strtok(NULL, " ");
 
             if(strcmp(cmd, "lls") == 0) {
@@ -92,7 +72,7 @@ int main(void) {
                 runCommand(socket, mS, mR, arg, CMD_CAT, CAT_DATA, CLIENT, SERVER);
 
             } else if(strcmp(cmd, "linha") == 0) {
-                if((atoi(arg) >= 0) && (atoi(arg) <= 9)) {
+                if((atoi(arg) >= 0) && (atoi(arg) <= 9)) { 
                     buildPacket(mS, strtok(NULL, " "), CMD_LINE, 0, CLIENT, SERVER); //strtok returns file name
                     sendPacket(socket, mS, mR, ACK);// send file name, wait for ACK
                     runCommand(socket, mS, mR, arg, LINE_DELIM, CAT_DATA, CLIENT, SERVER);
@@ -103,7 +83,7 @@ int main(void) {
                 if(atoi(arg) >= 0 && atoi(arg) <= 9 && atoi(argB) >= 0 && atoi(argB) <= 9) {
                     buildPacket(mS, strtok(NULL, " "), CMD_LINES, 0, CLIENT, SERVER); //strtok returns file name
                     sendPacket(socket, mS, mR, ACK);// send file name, wait for ACK
-                    strncat(arg, argB, 1);
+                    strncat(arg, argB, 1); // concatenate both delimiters into 1 string
                     runCommand(socket, mS, mR, arg, LINE_DELIM, CAT_DATA, CLIENT, SERVER);
                 } else
                     fprintf(stderr, "### ERR: LINE must be between 0 and 9\n");

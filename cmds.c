@@ -1,5 +1,6 @@
 #include "cmds.h"
 
+/* Funtion sends a command to the server and handles its response */
 void runCommand(int socket, tMessage *mS, tMessage *mR, char *arg, int CMD_TYPE, int R_TYPE, int src, int dest) {
     int seq = 0;
     ssize_t ret;
@@ -79,7 +80,7 @@ int cd(int socket, char *cwd, char *path) {
     if(path == NULL)
         return 0;
 
-    /* If path isnt to Root, "." or "..": add '/ to cwd and concatenate desired path'  */
+    /* If path isnt to Root('/'), "." or "..": add '/ to cwd and concatenate desired path'  */
     if( path[0] != '/' && (strcmp(path, ".") != 0) && (strcmp(path, "..") != 0) )  {
         strcpy(temp, cwd);
         strcat(temp, "/");
@@ -114,13 +115,16 @@ void lls(void) {
 
     fclose(fp);
 }
-
+/* Function sends the name of files and directories in the cwd back to client          *
+ * File names are contain '\n' at the end, unless its length is a multiple of DATA_MAX *
+ * in which case '\n' is sent in a separate message                                    */
 int ls(int socket) {
     struct dirent **namelist;
     int size, i, j, len;
     tMessage m;
     tMessage mR;
 
+    /* Generate list of directories and files in cwd */
     size = scandir("./", &namelist, NULL, alphasort);
     if(size == -1) {
         sendError(socket, errno);
@@ -129,8 +133,10 @@ int ls(int socket) {
 
     buildPacket(&m, NULL, LS_DATA, 0, SERVER, CLIENT);
 
+    /* Iterate list and send each file/directory name separetly */
     for(i = 0; i < size; i++) {
         len = strlen(namelist[i]->d_name);
+        /* Split longer file names and send consecutively */
         for(j = 0; j < floor(len / (float)DATA_MAX); j++) {
             m.size = DATA_MAX;
             memcpy(m.data, namelist[i]->d_name+(j*DATA_MAX), m.size);
@@ -144,7 +150,7 @@ int ls(int socket) {
             }
             m.seq++;
         }
-        if(len%DATA_MAX == 0) { // len is a multiple of DATA_MAX
+        if(len%DATA_MAX == 0) { // EDGE CASE: len is a multiple of DATA_MAX
             m.size = 1;
             m.data[0] = '\n';
             m.parity = parity(&m);
@@ -186,6 +192,8 @@ int ls(int socket) {
     return 1;
 }
 
+/* Function sends the contents of a file line by line to the client *
+ * Each line is preceded by its number                              */
 int cat(int socket, char *filename) {
     tMessage m;
     tMessage mR;
@@ -205,6 +213,7 @@ int cat(int socket, char *filename) {
     buildPacket(&m, NULL, CAT_DATA, 0, SERVER, CLIENT);
 
     while((size = getline(&lineptr, &n, fp)) != -1) {
+        /* Sends line number first */
         m.size = 4;
         snprintf(m.data, m.size, "%02d ", count);
         m.parity = parity(&m);
@@ -214,6 +223,7 @@ int cat(int socket, char *filename) {
             return -1;
         }
         m.seq++;
+        /* Sends line content */
         for(j = 0; j < ceil(size / (float)DATA_MAX); j++) {
             m.size = strlen(lineptr+(j*DATA_MAX)) <= DATA_MAX ? strlen(lineptr+(j*DATA_MAX)) : DATA_MAX;
             memcpy(m.data, lineptr+(j*DATA_MAX), m.size);
@@ -237,6 +247,7 @@ int cat(int socket, char *filename) {
 
 }
 
+/* Sends the content of the specified line form filename to the client */
 int line(int socket, char *filename, int line) {
     tMessage m;
     tMessage mR;
@@ -254,16 +265,17 @@ int line(int socket, char *filename, int line) {
     }
     buildPacket(&m, NULL, CAT_DATA, 0, SERVER, CLIENT);
 
+    /* Read file line by line */
     while((size = getline(&lineptr, &n, fp)) != -1) {
-        if(count == line) {
+        if(count == line) { // line found, send
             for(j = 0; j < ceil(size / (float)DATA_MAX); j++) {
-            m.size = strlen(lineptr+(j*DATA_MAX)) <= DATA_MAX ? strlen(lineptr+(j*DATA_MAX)) : DATA_MAX;
-            memcpy(m.data, lineptr+(j*DATA_MAX), m.size);
-            m.parity = parity(&m);
-            if(!sendPacket(socket, &m, &mR, ACK)) {
-                fclose(fp);
-                free(lineptr);
-                return -1;
+                m.size = strlen(lineptr+(j*DATA_MAX)) <= DATA_MAX ? strlen(lineptr+(j*DATA_MAX)) : DATA_MAX;
+                memcpy(m.data, lineptr+(j*DATA_MAX), m.size);
+                m.parity = parity(&m);
+                if(!sendPacket(socket, &m, &mR, ACK)) {
+                    fclose(fp);
+                    free(lineptr);
+                    return -1;
             }
             m.seq++;
             }
@@ -288,6 +300,7 @@ int line(int socket, char *filename, int line) {
     return 0;
 }
 
+/* Funtion sends the content of lines numbered start to end from filename to client */
 int lines(int socket, char *filename, int start, int end) {
     tMessage m;
     tMessage mR;

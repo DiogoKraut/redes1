@@ -2,9 +2,8 @@
 
 int errorDetection(tMessage *m) {
     unsigned char p;
-    p = parity(m);
-    // printf("0x%04X\n", p);
-    if(p == m->parity)
+    p = parity(m); // generate parity byte for current message
+    if(p == m->parity) // check if parity byte matches
         return 1;
     else
         return 0;
@@ -13,12 +12,20 @@ int errorDetection(tMessage *m) {
 
 unsigned char parity(tMessage *m) {
     unsigned char p1, p2;
-    p1 = (m->dest_addr << 6) | (m->src_addr << 4) | (m->size);
-    p2 = (m->seq << 4) | (m->type);
-    p1 = p1 ^ p2;
+    int i;
+
+    p1 = (m->dest_addr << 6) | (m->src_addr << 4) | (m->size); // join fields into single byte
+    p2 = (m->seq << 4) | (m->type); // join fields into single byte
+    p1 = p1 ^ p2; //XOR
+
+    for(i = 0; i < m->size; i++) {
+        p1 = p1^ m->data[i]; // XOR with data field
+    }
     return p1;
 }
 
+/* Builds a packet including all nescessary header info     *
+ * ### Does not add terminating null byte to the data field */
 void buildPacket(tMessage *mS, char *arg,  int type, int seq, int src, int dest) {
     /* Initial setup */
     mS->init = 0x7E;
@@ -27,16 +34,11 @@ void buildPacket(tMessage *mS, char *arg,  int type, int seq, int src, int dest)
     mS->seq = seq;
     mS->size = 0;
     mS->data[0] = '\0';
-
     mS->type = type;
 
     if(arg != NULL) { /* Command has an argument */
         mS->size = strlen(arg);
         memcpy(mS->data, arg, mS->size);
-        // mS->data[mS->size] = '\0';
-    } else {
-        mS->size = 0;
-        mS->data[0] = '\0';
     }
     mS->parity = parity(mS);
 
@@ -74,6 +76,7 @@ int sendPacket(int socket, tMessage *mS, tMessage *mR, int TYPE) {
     printf("TIMEOUT reached.. RESEND\n");
     return sendPacket(socket, mS, mR, TYPE);
 }
+
 void sendError(int socket, int err) {
     tMessage m;
     m.init = 0x7E;
@@ -100,6 +103,7 @@ void sendError(int socket, int err) {
     }
     send(socket, &m, sizeof(tMessage), 0);
 }
+
 void packetError(int e) {
     switch(e) {
         case PERM_DENIED:
