@@ -19,27 +19,20 @@ void runCommand(int socket, tMessage *mS, tMessage *mR, char *arg, int CMD_TYPE,
     buildPacket(mS, arg, CMD_TYPE, 0, src, dest);
     sendPacket(socket, mS, mR, R_TYPE);
 
-    while(mR->type != EOTX && mR->type != ERR) { // process response until EOTX
-        if(mR->type == R_TYPE) {
+    while(mR->type != EOTX && mR->type != ERR) { // process response until EOTX or ERR
+        if(mR->type == R_TYPE && mR->seq == seq) {
             if(errorDetection(mR)) {// print if no errors
                 memcpy(data_tmp, mR->data, mR->size);
                 data_tmp[mR->size] = '\0';
-                if(mR->seq == 0) {
-                    if(CMD_TYPE == CMD_CAT)
-                        printf("%d %s", seq, data_tmp);
-                    else
-                        printf("%s\n", data_tmp);
-                } else if(mR->seq == 1 && CMD_TYPE == CMD_CAT) {
-                    printf("%d %s", seq, data_tmp);
-                } else
-                    printf("%s", data_tmp);
-
-
-
-                seq++;
+                printf("%s", data_tmp);
                 send(socket, ack, sizeof(tMessage), 0);
-            } else
-                    send(socket, nack, sizeof(tMessage), 0); // nack if error
+            } else {
+                send(socket, nack, sizeof(tMessage), 0); // nack if error
+            }
+            if(seq == SEQ_MAX)
+                seq = 0; // there are more messages than seq can represent, reset to 0
+            else
+                seq++;
         }
         /* Receive next response */
         if ((ret = recv(socket, buffer, sizeof(tMessage), 0)) <= 0) {
@@ -51,7 +44,7 @@ void runCommand(int socket, tMessage *mS, tMessage *mR, char *arg, int CMD_TYPE,
     if(mR->type == EOTX)
         send(socket, ack, sizeof(tMessage), 0); //ACK EOTX
     else if(mR->type == ERR)
-        packetError(mR->data[0]);
+        // packetError(mR->data[0]);
 
     free(data_tmp);
     free(buffer);
@@ -80,11 +73,11 @@ void lcd(char *cwd, char *path) {
     }
 }
 
-void cd(int socket, char *cwd, char *path) {
+int cd(int socket, char *cwd, char *path) {
     char temp[PATH_MAX];
     /* No path specified; return */
     if(path == NULL)
-        return;
+        return 0;
 
     /* If path isnt to Root, "." or "..": add '/ to cwd and concatenate desired path'  */
     if( path[0] != '/' && (strcmp(path, ".") != 0) && (strcmp(path, "..") != 0) )  {
@@ -97,7 +90,9 @@ void cd(int socket, char *cwd, char *path) {
 
     if(chdir(temp) < 0) {
         sendError(socket, errno);
+        return -1;
     }
+    return 1;
 }
 
 void lls(void) {
@@ -117,7 +112,7 @@ void lls(void) {
         printf("%s", out);
     }
 
-    pclose(fp);
+    fclose(fp);
 }
 
 int ls(int socket) {
@@ -126,7 +121,6 @@ int ls(int socket) {
     tMessage m;
     tMessage mR;
 
-    // char s[DATA_MAX+1];
     size = scandir("./", &namelist, NULL, alphasort);
     if(size == -1) {
         sendError(socket, errno);
@@ -136,50 +130,49 @@ int ls(int socket) {
     buildPacket(&m, NULL, LS_DATA, 0, SERVER, CLIENT);
 
     for(i = 0; i < size; i++) {
-        m.seq = 0;
         len = strlen(namelist[i]->d_name);
-        for(j = 0; j < floor(len / DATA_MAX); j++) {
-            m.seq++;
+        for(j = 0; j < floor(len / (float)DATA_MAX); j++) {
             m.size = DATA_MAX;
-            memcpy(m.data, namelist[i]->d_name + (j*DATA_MAX), m.size);
+            memcpy(m.data, namelist[i]->d_name+(j*DATA_MAX), m.size);
             m.parity = parity(&m);
-            // memcpy(s, m.data, m.size);
-            if(!sendPacket(socket, &m, &mR, ACK))
+            if(!sendPacket(socket, &m, &mR, ACK)) {
+                for(i = 0; i < size; i++) {
+                    free(namelist[i]);
+                }
+                free(namelist);
                 return -1;
-            printf("ack received\n");
-        }
-
-        if(m.seq > 0) {
+            }
             m.seq++;
-            m.size = strlen(namelist[i]->d_name + (j*DATA_MAX));
-            memcpy(m.data, namelist[i]->d_name + (j*DATA_MAX), m.size);
-            m.parity = parity(&m);
-            if(!sendPacket(socket, &m, &mR, ACK))
-                return -1;
+        }
+        if(len%DATA_MAX == 0) { // len is a multiple of DATA_MAX
             m.size = 1;
             m.data[0] = '\n';
             m.parity = parity(&m);
-            if(!sendPacket(socket, &m, &mR, ACK))
+            if(!sendPacket(socket, &m, &mR, ACK)) {
+                for(i = 0; i < size; i++) {
+                    free(namelist[i]);
+                }
+                free(namelist);
                 return -1;
+            }
+            m.seq++;
+        } else { // Leftover
+            m.size = strlen(namelist[i]->d_name + (j*DATA_MAX))+1;
+            memcpy(m.data, namelist[i]->d_name+(j*DATA_MAX), m.size-1);
+            m.data[m.size-1] = '\n';
+            m.parity = parity(&m);
+            if(!sendPacket(socket, &m, &mR, ACK)) {
+                for(i = 0; i < size; i++) {
+                    free(namelist[i]);
+                }
+                free(namelist);
+                return -1;
+            }
+            m.seq++;
         }
-        m.size = strlen(namelist[i]->d_name + (j*DATA_MAX));
-        memcpy(m.data, namelist[i]->d_name + (j*DATA_MAX), m.size);
-        m.parity = parity(&m);
-        if(!sendPacket(socket, &m, &mR, ACK))
-            return -1;
 
 
-
-
-        // m.size = strlen(namelist[i]->d_name) <= DATA_MAX ? strlen(namelist[i]->d_name) : DATA_MAX;
-        // memcpy(m.data, namelist[i]->d_name, m.size);
-        // m.parity = parity(&m);
-        // if(!sendPacket(socket, &m, &mR, ACK))
-        //     return -1;
-
-
-
-
+        printf("%s\n", namelist[i]->d_name);
     }
     /* Send EOTX */
     buildPacket(&m, NULL, EOTX, 0, SERVER, CLIENT);
@@ -201,6 +194,7 @@ int cat(int socket, char *filename) {
     char *lineptr = NULL;
     size_t n = 0;
     ssize_t size;
+    int j, count = 0;
 
     fp = fopen(filename, "r");
     if(fp == NULL) {
@@ -211,12 +205,27 @@ int cat(int socket, char *filename) {
     buildPacket(&m, NULL, CAT_DATA, 0, SERVER, CLIENT);
 
     while((size = getline(&lineptr, &n, fp)) != -1) {
-        m.size = strlen(lineptr) <= DATA_MAX ? strlen(lineptr) : DATA_MAX;
-        memcpy(m.data, lineptr, m.size);
-        // m.data[m.size-1] = '\0';
+        m.size = 4;
+        snprintf(m.data, m.size, "%02d ", count);
         m.parity = parity(&m);
-        if(!sendPacket(socket, &m, &mR, ACK))
+        if(!sendPacket(socket, &m, &mR, ACK)) {
+            fclose(fp);
+            free(lineptr);
             return -1;
+        }
+        m.seq++;
+        for(j = 0; j < ceil(size / (float)DATA_MAX); j++) {
+            m.size = strlen(lineptr+(j*DATA_MAX)) <= DATA_MAX ? strlen(lineptr+(j*DATA_MAX)) : DATA_MAX;
+            memcpy(m.data, lineptr+(j*DATA_MAX), m.size);
+            m.parity = parity(&m);
+            if(!sendPacket(socket, &m, &mR, ACK)) {
+                fclose(fp);
+                free(lineptr);
+                return -1;
+            }
+            m.seq++;
+        }
+        count++;
     }
     /* Send EOTX */
     buildPacket(&m, NULL, EOTX, 0, SERVER, CLIENT);
@@ -234,7 +243,7 @@ int line(int socket, char *filename, int line) {
     char *lineptr = NULL;
     size_t n = 0;
     ssize_t size;
-    int count = 0;
+    int j, count = 0;
 
     FILE *fp;
 
@@ -243,18 +252,20 @@ int line(int socket, char *filename, int line) {
         sendError(socket, errno);
         return 0;
     }
-
     buildPacket(&m, NULL, CAT_DATA, 0, SERVER, CLIENT);
 
     while((size = getline(&lineptr, &n, fp)) != -1) {
         if(count == line) {
-            m.size = strlen(lineptr) <= DATA_MAX ? strlen(lineptr) : DATA_MAX;
-            memcpy(m.data, lineptr, m.size);
-            // m.data[m.size-1] = '\0';
+            for(j = 0; j < ceil(size / (float)DATA_MAX); j++) {
+            m.size = strlen(lineptr+(j*DATA_MAX)) <= DATA_MAX ? strlen(lineptr+(j*DATA_MAX)) : DATA_MAX;
+            memcpy(m.data, lineptr+(j*DATA_MAX), m.size);
             m.parity = parity(&m);
             if(!sendPacket(socket, &m, &mR, ACK)) {
+                fclose(fp);
                 free(lineptr);
                 return -1;
+            }
+            m.seq++;
             }
         }
         count++;
@@ -262,6 +273,58 @@ int line(int socket, char *filename, int line) {
 
     if(count <= line) {// line doesnt exist
         sendError(socket, NO_LINE);
+        fclose(fp);
+        free(lineptr);
+        return 0;
+    } else {
+        /* Send EOTX */
+        buildPacket(&m, NULL, EOTX, 0, SERVER, CLIENT);
+        sendPacket(socket, &m, &mR, ACK);
+    }
+
+    fclose(fp);
+    free(lineptr);
+
+    return 0;
+}
+
+int lines(int socket, char *filename, int start, int end) {
+    tMessage m;
+    tMessage mR;
+    char *lineptr = NULL;
+    size_t n = 0;
+    ssize_t size;
+    int j, count = 0;
+
+    FILE *fp;
+
+    fp = fopen(filename, "r");
+    if(fp == NULL) {
+        sendError(socket, errno);
+        return 0;
+    }
+    buildPacket(&m, NULL, CAT_DATA, 0, SERVER, CLIENT);
+
+    while((size = getline(&lineptr, &n, fp)) != -1) {
+        if(count >= start && count <= end) {
+            for(j = 0; j < ceil(size / (float)DATA_MAX); j++) {
+            m.size = strlen(lineptr+(j*DATA_MAX)) <= DATA_MAX ? strlen(lineptr+(j*DATA_MAX)) : DATA_MAX;
+            memcpy(m.data, lineptr+(j*DATA_MAX), m.size);
+            m.parity = parity(&m);
+            if(!sendPacket(socket, &m, &mR, ACK)) {
+                fclose(fp);
+                free(lineptr);
+                return -1;
+            }
+            m.seq++;
+            }
+        }
+        count++;
+    }
+
+    if(count <= start) {// line doesnt exist
+        sendError(socket, NO_LINE);
+        fclose(fp);
         free(lineptr);
         return 0;
     } else {

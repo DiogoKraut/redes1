@@ -53,22 +53,17 @@ int main() {
 
         /* if marker is found*/
         if(m->init == 0x7E) {
-
-            // if(errorDetection(m))
-            //  send(socket, ack, sizeof(tMessage), 0);
-            // else
-            //  send(socket, nack, sizeof(tMessage),0);
-
             /* interpret type and execute command */
             switch(m->type) {
                 case CMD_CD:
-                    send(socket, ack, sizeof(tMessage), 0);
                     memcpy(tmp, m->data, m->size);
                     tmp[m->size] = '\0';
-                    cd(socket, cwd, tmp);
-                    if (getcwd(cwd, sizeof(cwd)) == NULL) {
-                        perror("getcwd() error");
-                        exit(-1);
+                    if(cd(socket, cwd, tmp)) { 
+                        send(socket, ack, sizeof(tMessage), 0);
+                        if (getcwd(cwd, sizeof(cwd)) == NULL) {
+                            perror("getcwd() error");
+                            exit(-1);
+                        }
                     }
 
                     break;
@@ -93,6 +88,19 @@ int main() {
                         memcpy(m, buffer, sizeof(tMessage));
                     }
                     line(socket, tmp, m->data[0] - '0');
+                    break;
+                case CMD_LINES:
+                    send(socket, ack, sizeof(tMessage), 0);
+                    memcpy(tmp, m->data, m->size);
+                    tmp[m->size] = '\0';
+                    while(m->type != LINE_DELIM) {
+                        if ((ret = recv(socket, buffer, sizeof(tMessage), 0)) <= 0) {
+                            perror("### Err: Packet recv failed");
+                            exit(-1);
+                        }
+                        memcpy(m, buffer, sizeof(tMessage));
+                    }
+                    lines(socket, tmp, m->data[0] - '0', m->data[1] - '0');
                     break;
             }
         }

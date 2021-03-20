@@ -19,10 +19,11 @@
 
 void lls(void);
 void lcd(char *cwd, char *path);
-void cd(int socket, char *cwd, char *path);
+int cd(int socket, char *cwd, char *path);
 int ls(int socket);
 int cat(int socket, char *filename);
 int line(int socket, char *filename, int line);
+int lines(int socket, char *filename, int start, int end);
 void runCommand(int socket, tMessage *mS, tMessage *mR, char *arg, int CMD_TYPE, int R_TYPE, int src, int dest);
 
 #endif

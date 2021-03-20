@@ -64,7 +64,7 @@ int sendPacket(int socket, tMessage *mS, tMessage *mR, int TYPE) {
             else if(mR->type == NACK)
                 send(socket, mS, sizeof(tMessage), 0); // resend
             else if(mR->type == ERR) {
-                packetError(atoi(mR->data));
+                packetError(mR->data[0]);
                 return 0;
             }
         }
@@ -114,6 +114,8 @@ void packetError(int e) {
         case NO_LINE:
             fprintf(stderr, "### ERR: File doesn't contain specified line\n");
             break;
+        default:
+            fprintf(stderr, "### ERR: Undocumented error\n");
     }
 }
 

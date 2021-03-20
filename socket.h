@@ -38,6 +38,7 @@
 
 #define TIMEOUT_LIMIT 20
 #define DATA_MAX 15
+#define SEQ_MAX 15
 
 typedef struct sMessage {
     unsigned char init;
