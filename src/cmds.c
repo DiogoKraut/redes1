@@ -1,7 +1,7 @@
 #include "cmds.h"
 
 /* Funtion sends a command to the server and handles its response */
-void runCommand(int socket, tMessage *mS, tMessage *mR, char *arg, int CMD_TYPE, int R_TYPE, int src, int dest) {
+void runCommand(int socket, tMessage *mS, tMessage *mR, char *arg, int CMD_TYPE, int R_TYPE, int src, int dest, char *s) {
     int seq = 0;
     ssize_t ret;
     unsigned char *buffer = malloc(sizeof(tMessage));
@@ -25,7 +25,12 @@ void runCommand(int socket, tMessage *mS, tMessage *mR, char *arg, int CMD_TYPE,
             if(errorDetection(mR)) {// print if no errors
                 memcpy(data_tmp, mR->data, mR->size);
                 data_tmp[mR->size] = '\0';
-                printf("%s", data_tmp);
+                if(s == NULL) {
+                    printf("%s", data_tmp);
+                }
+                else {
+                    strncat(s, data_tmp, mR->size);
+                }
                 send(socket, ack, sizeof(tMessage), 0);
             } else {
                 send(socket, nack, sizeof(tMessage), 0); // nack if error
@@ -118,7 +123,7 @@ void lls(void) {
 /* Function sends the name of files and directories in the cwd back to client          *
  * File names are contain '\n' at the end, unless its length is a multiple of DATA_MAX *
  * in which case '\n' is sent in a separate message                                    */
-int ls(int socket) {
+void ls(int socket) {
     struct dirent **namelist;
     int size, i, j, len;
     tMessage m;
@@ -128,7 +133,7 @@ int ls(int socket) {
     size = scandir("./", &namelist, NULL, alphasort);
     if(size == -1) {
         sendError(socket, errno);
-        return -1;
+        return;
     }
 
     buildPacket(&m, NULL, LS_DATA, 0, SERVER, CLIENT);
@@ -146,7 +151,7 @@ int ls(int socket) {
                     free(namelist[i]);
                 }
                 free(namelist);
-                return -1;
+                return;
             }
             m.seq++;
         }
@@ -159,7 +164,7 @@ int ls(int socket) {
                     free(namelist[i]);
                 }
                 free(namelist);
-                return -1;
+                return;
             }
             m.seq++;
         } else { // Leftover
@@ -172,13 +177,10 @@ int ls(int socket) {
                     free(namelist[i]);
                 }
                 free(namelist);
-                return -1;
+                return;
             }
             m.seq++;
         }
-
-
-        printf("%s\n", namelist[i]->d_name);
     }
     /* Send EOTX */
     buildPacket(&m, NULL, EOTX, 0, SERVER, CLIENT);
@@ -188,39 +190,29 @@ int ls(int socket) {
         free(namelist[i]);
     }
     free(namelist);
-
-    return 1;
 }
 
 /* Function sends the contents of a file line by line to the client *
  * Each line is preceded by its number                              */
-int cat(int socket, char *filename) {
+void cat(int socket, FILE *fp) {
     tMessage m;
     tMessage mR;
 
-    FILE *fp;
     char *lineptr = NULL;
     size_t n = 0;
     ssize_t size;
     int j, count = 0;
 
-    fp = fopen(filename, "r");
-    if(fp == NULL) {
-        sendError(socket, errno);
-        return 0;
-    }
-
     buildPacket(&m, NULL, CAT_DATA, 0, SERVER, CLIENT);
 
     while((size = getline(&lineptr, &n, fp)) != -1) {
         /* Sends line number first */
-        m.size = 4;
-        snprintf(m.data, m.size, "%02d ", count);
+        m.size = 3;
+        snprintf(m.data, m.size, "%01d ", count);
         m.parity = parity(&m);
         if(!sendPacket(socket, &m, &mR, ACK)) {
-            fclose(fp);
             free(lineptr);
-            return -1;
+            return;
         }
         m.seq++;
         /* Sends line content */
@@ -229,9 +221,8 @@ int cat(int socket, char *filename) {
             memcpy(m.data, lineptr+(j*DATA_MAX), m.size);
             m.parity = parity(&m);
             if(!sendPacket(socket, &m, &mR, ACK)) {
-                fclose(fp);
                 free(lineptr);
-                return -1;
+                return;
             }
             m.seq++;
         }
@@ -241,14 +232,11 @@ int cat(int socket, char *filename) {
     buildPacket(&m, NULL, EOTX, 0, SERVER, CLIENT);
     sendPacket(socket, &m, &mR, ACK);
 
-    fclose(fp);
     free(lineptr);
-    return 1;
-
 }
 
-/* Sends the content of the specified line form filename to the client */
-int line(int socket, char *filename, int line) {
+/* Sends the content of the specified line from fp to the client */
+void line(int socket, FILE *fp, int line) {
     tMessage m;
     tMessage mR;
     char *lineptr = NULL;
@@ -256,13 +244,6 @@ int line(int socket, char *filename, int line) {
     ssize_t size;
     int j, count = 0;
 
-    FILE *fp;
-
-    fp = fopen(filename, "r");
-    if(fp == NULL) {
-        sendError(socket, errno);
-        return 0;
-    }
     buildPacket(&m, NULL, CAT_DATA, 0, SERVER, CLIENT);
 
     /* Read file line by line */
@@ -273,9 +254,8 @@ int line(int socket, char *filename, int line) {
                 memcpy(m.data, lineptr+(j*DATA_MAX), m.size);
                 m.parity = parity(&m);
                 if(!sendPacket(socket, &m, &mR, ACK)) {
-                    fclose(fp);
                     free(lineptr);
-                    return -1;
+                    return;
             }
             m.seq++;
             }
@@ -285,23 +265,17 @@ int line(int socket, char *filename, int line) {
 
     if(count <= line) {// line doesnt exist
         sendError(socket, NO_LINE);
-        fclose(fp);
-        free(lineptr);
-        return 0;
     } else {
         /* Send EOTX */
         buildPacket(&m, NULL, EOTX, 0, SERVER, CLIENT);
         sendPacket(socket, &m, &mR, ACK);
     }
 
-    fclose(fp);
     free(lineptr);
-
-    return 0;
 }
 
 /* Funtion sends the content of lines numbered start to end from filename to client */
-int lines(int socket, char *filename, int start, int end) {
+void lines(int socket, FILE *fp, int start, int end) {
     tMessage m;
     tMessage mR;
     char *lineptr = NULL;
@@ -309,13 +283,6 @@ int lines(int socket, char *filename, int start, int end) {
     ssize_t size;
     int j, count = 0;
 
-    FILE *fp;
-
-    fp = fopen(filename, "r");
-    if(fp == NULL) {
-        sendError(socket, errno);
-        return 0;
-    }
     buildPacket(&m, NULL, CAT_DATA, 0, SERVER, CLIENT);
 
     while((size = getline(&lineptr, &n, fp)) != -1) {
@@ -325,9 +292,8 @@ int lines(int socket, char *filename, int start, int end) {
             memcpy(m.data, lineptr+(j*DATA_MAX), m.size);
             m.parity = parity(&m);
             if(!sendPacket(socket, &m, &mR, ACK)) {
-                fclose(fp);
                 free(lineptr);
-                return -1;
+                return;
             }
             m.seq++;
             }
@@ -337,17 +303,41 @@ int lines(int socket, char *filename, int start, int end) {
 
     if(count <= start) {// line doesnt exist
         sendError(socket, NO_LINE);
-        fclose(fp);
-        free(lineptr);
-        return 0;
     } else {
         /* Send EOTX */
         buildPacket(&m, NULL, EOTX, 0, SERVER, CLIENT);
         sendPacket(socket, &m, &mR, ACK);
     }
 
-    fclose(fp);
     free(lineptr);
+}
 
-    return 0;
+int edit(int socket, FILE *fp, int line, char *s) {
+    // tMessage m;
+    // tMessage mR;
+    char *lineptr = NULL;
+    size_t n = 0;
+    ssize_t size;
+    int i;
+    FILE *replace;
+
+    replace = fopen("replace.tmp", "w+");
+
+    if(replace == NULL) {
+        fprintf(stderr, "### edit: tmp file fopen error\n");
+        return -1;
+    }
+
+    i = 0;
+    while((size = getline(&lineptr, &n, fp)) != -1) {
+        if(i == line) {
+            fwrite(s, 1, strlen(s), replace);
+        } else {
+            fwrite(lineptr, 1, size, replace);
+        }
+        i++;
+    }
+    fclose(replace);
+
+    return i >= line;
 }

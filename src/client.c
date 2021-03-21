@@ -24,12 +24,13 @@ int main(void) {
     ssize_t read;
     char cwd[PATH_MAX]; // current working directory
     int end = 0;
+    int size, j;
 
     tMessage *mS = malloc(sizeof(tMessage));
     tMessage *mR = malloc(sizeof(tMessage));
 
     socket = createSocket();
-
+    setbuf(stdout, NULL);
     /* Get current working directoy */
     if (getcwd(cwd, sizeof(cwd)) == NULL) {
         perror("getcwd() error");
@@ -66,25 +67,56 @@ int main(void) {
                 sendPacket(socket, mS, mR, ACK);
 
             } else if(strcmp(cmd, "ls") == 0) {
-                runCommand(socket, mS, mR, arg, CMD_LS, LS_DATA, CLIENT, SERVER);
+                runCommand(socket, mS, mR, arg, CMD_LS, LS_DATA, CLIENT, SERVER, NULL);
 
             } else if(strcmp(cmd, "ver") == 0) {
-                runCommand(socket, mS, mR, arg, CMD_CAT, CAT_DATA, CLIENT, SERVER);
+                runCommand(socket, mS, mR, arg, CMD_CAT, CAT_DATA, CLIENT, SERVER, NULL);
 
             } else if(strcmp(cmd, "linha") == 0) {
                 if((atoi(arg) >= 0) && (atoi(arg) <= 9)) { 
                     buildPacket(mS, strtok(NULL, " "), CMD_LINE, 0, CLIENT, SERVER); //strtok returns file name
-                    sendPacket(socket, mS, mR, ACK);// send file name, wait for ACK
-                    runCommand(socket, mS, mR, arg, LINE_DELIM, CAT_DATA, CLIENT, SERVER);
+                    if(sendPacket(socket, mS, mR, ACK) == 1) { // send file name, wait for ACK
+                        runCommand(socket, mS, mR, arg, LINE_DELIM, CAT_DATA, CLIENT, SERVER, NULL);
+                    }
                 } else
                     fprintf(stderr, "### ERR: LINE must be between 0 and 9\n");
             } else if(strcmp(cmd, "linhas") == 0) {
                 argB = strtok(NULL, " "); // set final line
                 if(atoi(arg) >= 0 && atoi(arg) <= 9 && atoi(argB) >= 0 && atoi(argB) <= 9) {
                     buildPacket(mS, strtok(NULL, " "), CMD_LINES, 0, CLIENT, SERVER); //strtok returns file name
-                    sendPacket(socket, mS, mR, ACK);// send file name, wait for ACK
-                    strncat(arg, argB, 1); // concatenate both delimiters into 1 string
-                    runCommand(socket, mS, mR, arg, LINE_DELIM, CAT_DATA, CLIENT, SERVER);
+                    if(sendPacket(socket, mS, mR, ACK) == 1) {// send file name, wait for ACK
+                        strncat(arg, argB, 1); // concatenate both delimiters into 1 string
+                        runCommand(socket, mS, mR, arg, LINE_DELIM, CAT_DATA, CLIENT, SERVER, NULL);
+                    }
+                } else
+                    fprintf(stderr, "### ERR: LINE must be between 0 and 9\n");
+
+            } else if(strcmp(cmd, "edit") == 0) {
+                if((atoi(arg) >= 0) && (atoi(arg) <= 9)) { 
+                    buildPacket(mS, strtok(NULL, " "), CMD_EDIT, 0, CLIENT, SERVER); //strtok returns file name
+                    if(sendPacket(socket, mS, mR, ACK) == 1) { // send file name, wait for ACK
+                        buildPacket(mS, arg, LINE_DELIM, 0, CLIENT, SERVER);
+                        sendPacket(socket, mS, mR, ACK);
+                        argB = strtok(NULL, " ");
+
+                        // buildPacket(mS, argB, CAT_DATA, 0, CLIENT, SERVER);
+                        // sendPacket(socket, mS, mR, ACK);
+                        size = strlen(argB);
+
+                        for(j = 0; j < ceil(size / (float)DATA_MAX); j++) {
+                            mS->type = CAT_DATA;
+                            mS->size = strlen(argB+(j*DATA_MAX)) <= DATA_MAX ? strlen(argB+(j*DATA_MAX)) : DATA_MAX;
+                            memcpy(mS->data, argB+(j*DATA_MAX), mS->size);
+                            mS->parity = parity(mS);
+                            if(!sendPacket(socket, mS, mR, ACK)) {
+                                return -1;
+                            }
+                            mS->seq++;
+                        }
+                        buildPacket(mS, NULL, EOTX, 0, CLIENT, SERVER);
+                        sendPacket(socket, mS, mR, ACK);
+                    }
+
                 } else
                     fprintf(stderr, "### ERR: LINE must be between 0 and 9\n");
             }
@@ -98,6 +130,7 @@ int main(void) {
     // free(buffer);
     free(mS);
     free(mR);
+    free(temp);
     // free(ack);
     // free(nack);
 }

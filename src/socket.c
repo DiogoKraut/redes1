@@ -73,7 +73,7 @@ int sendPacket(int socket, tMessage *mS, tMessage *mR, int TYPE) {
         timeout++;
     }
     /* TIMEOUT reached.. RESEND */
-    printf("TIMEOUT reached.. RESEND\n");
+    printf("TIMEOUT reached.. RESEND %d\n", TYPE);
     return sendPacket(socket, mS, mR, TYPE);
 }
 
