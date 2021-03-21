@@ -27,6 +27,6 @@ void cat(int socket, FILE *fp);
 void line(int socket, FILE *fp, int line);
 void lines(int socket, FILE *fp, int start, int end);
 int edit(int socket, FILE *fp, int line, char *s);
-void runCommand(int socket, tMessage *mS, tMessage *mR, char *arg, int CMD_TYPE, int R_TYPE, int src, int dest, char *s);
+void runCommand(int socket, char *arg, int CMD_TYPE, int R_TYPE, int src, int dest, char *s);
 
 #endif

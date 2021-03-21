@@ -67,16 +67,16 @@ int main(void) {
                 sendPacket(socket, mS, mR, ACK);
 
             } else if(strcmp(cmd, "ls") == 0) {
-                runCommand(socket, mS, mR, arg, CMD_LS, LS_DATA, CLIENT, SERVER, NULL);
+                runCommand(socket, arg, CMD_LS, LS_DATA, CLIENT, SERVER, NULL);
 
             } else if(strcmp(cmd, "ver") == 0) {
-                runCommand(socket, mS, mR, arg, CMD_CAT, CAT_DATA, CLIENT, SERVER, NULL);
+                runCommand(socket, arg, CMD_CAT, CAT_DATA, CLIENT, SERVER, NULL);
 
             } else if(strcmp(cmd, "linha") == 0) {
                 if((atoi(arg) >= 0) && (atoi(arg) <= 9)) { 
                     buildPacket(mS, strtok(NULL, " "), CMD_LINE, 0, CLIENT, SERVER); //strtok returns file name
                     if(sendPacket(socket, mS, mR, ACK) == 1) { // send file name, wait for ACK
-                        runCommand(socket, mS, mR, arg, LINE_DELIM, CAT_DATA, CLIENT, SERVER, NULL);
+                        runCommand(socket, arg, LINE_DELIM, CAT_DATA, CLIENT, SERVER, NULL);
                     }
                 } else
                     fprintf(stderr, "### ERR: LINE must be between 0 and 9\n");
@@ -86,7 +86,7 @@ int main(void) {
                     buildPacket(mS, strtok(NULL, " "), CMD_LINES, 0, CLIENT, SERVER); //strtok returns file name
                     if(sendPacket(socket, mS, mR, ACK) == 1) {// send file name, wait for ACK
                         strncat(arg, argB, 1); // concatenate both delimiters into 1 string
-                        runCommand(socket, mS, mR, arg, LINE_DELIM, CAT_DATA, CLIENT, SERVER, NULL);
+                        runCommand(socket, arg, LINE_DELIM, CAT_DATA, CLIENT, SERVER, NULL);
                     }
                 } else
                     fprintf(stderr, "### ERR: LINE must be between 0 and 9\n");

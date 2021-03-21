@@ -44,7 +44,7 @@ void buildPacket(tMessage *mS, char *arg,  int type, int seq, int src, int dest)
 
 }
 
-/* Sends the packet described in m and waits for the response   *
+/* Sends the packet described in mS and waits for the response   *
  * Returns 1 if response type matches the one specified in TYPE *
  * Returns 0 if response type is an error                       *
  * Resends if reponse type is NACK or TIMEOUT is reached        *

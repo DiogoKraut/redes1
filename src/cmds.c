@@ -1,14 +1,14 @@
 #include "cmds.h"
 
-/* Funtion sends a command to the server and handles its response */
-void runCommand(int socket, tMessage *mS, tMessage *mR, char *arg, int CMD_TYPE, int R_TYPE, int src, int dest, char *s) {
+/* Funtion sends a command and handles its response */
+void runCommand(int socket, char *arg, int CMD_TYPE, int R_TYPE, int src, int dest, char *s) {
     int seq = 0;
     ssize_t ret;
     unsigned char *buffer = malloc(sizeof(tMessage));
     char *data_tmp = malloc(DATA_MAX+3);
     char *ack = malloc(sizeof(tMessage));
     char *nack = malloc(sizeof(tMessage));
-    tMessage m;
+    tMessage m, mS, mR;
 
     /* ACK and NACK setup */
     buildPacket(&m, NULL, ACK, 0, src, dest);
@@ -17,19 +17,19 @@ void runCommand(int socket, tMessage *mS, tMessage *mR, char *arg, int CMD_TYPE,
     memcpy(nack, &m, sizeof(tMessage));
 
 
-    buildPacket(mS, arg, CMD_TYPE, 0, src, dest);
-    sendPacket(socket, mS, mR, R_TYPE);
+    buildPacket(&mS, arg, CMD_TYPE, 0, src, dest);
+    sendPacket(socket, &mS, &mR, R_TYPE);
 
-    while(mR->type != EOTX && mR->type != ERR) { // process response until EOTX or ERR
-        if(mR->type == R_TYPE && mR->seq == seq) {
-            if(errorDetection(mR)) {// print if no errors
-                memcpy(data_tmp, mR->data, mR->size);
-                data_tmp[mR->size] = '\0';
+    while(mR.type != EOTX && mR.type != ERR) { // process response until EOTX or ERR
+        if(mR.type == R_TYPE && mR.seq == seq) {
+            if(errorDetection(&mR)) {// print if no errors
+                memcpy(data_tmp, mR.data, mR.size);
+                data_tmp[mR.size] = '\0';
                 if(s == NULL) {
                     printf("%s", data_tmp);
                 }
                 else {
-                    strncat(s, data_tmp, mR->size);
+                    strncat(s, data_tmp, mR.size);
                 }
                 send(socket, ack, sizeof(tMessage), 0);
             } else {
@@ -45,12 +45,12 @@ void runCommand(int socket, tMessage *mS, tMessage *mR, char *arg, int CMD_TYPE,
             perror("### Err: Packet recv failed");
             exit(-1);
         }
-        memcpy(mR, buffer, sizeof(tMessage));
+        memcpy(&mR, buffer, sizeof(tMessage));
     }
-    if(mR->type == EOTX)
+    if(mR.type == EOTX)
         send(socket, ack, sizeof(tMessage), 0); //ACK EOTX
-    else if(mR->type == ERR)
-        // packetError(mR->data[0]);
+    else if(mR.type == ERR)
+        // packetError(mR.data[0]);
 
     free(data_tmp);
     free(buffer);

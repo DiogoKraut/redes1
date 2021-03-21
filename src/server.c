@@ -144,7 +144,7 @@ int main() {
                             memcpy(m, buffer, sizeof(tMessage));
                         }
                         edit_line = m->data[0] - '0';//conver to int
-                        runCommand(socket, m, mR, NULL, ACK, CAT_DATA, SERVER, CLIENT, edit_data);  
+                        runCommand(socket, NULL, ACK, CAT_DATA, SERVER, CLIENT, edit_data);  
                         strcat(edit_data, "\n"); //lines are terminated by \n
                         edit(socket, fp, edit_line, edit_data);               
                         fclose(fp);
